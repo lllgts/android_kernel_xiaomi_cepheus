@@ -1068,6 +1068,10 @@ struct ufs_hba {
 	int latency_hist_enabled;
 	struct io_latency_state io_lat_s;
 
+	/* To monitor slow UFS I/O requests. */
+	u64 slowio_us;
+	u64 slowio_cnt;
+
 	bool reinit_g4_rate_A;
 	bool force_g4;
 	/* distinguish between resume and restore */
@@ -1538,5 +1542,9 @@ static inline void ufshcd_vops_remove_debugfs(struct ufs_hba *hba)
 {
 }
 #endif
+
+
+#define UFSHCD_MIN_SLOWIO_US		(1000)     /* 1 ms */
+#define UFSHCD_DEFAULT_SLOWIO_US	(10000000) /* 10 seconds */
 
 #endif /* End of Header */
