@@ -4,6 +4,8 @@
 
 #if defined(CONFIG_AS_LSE) && defined(CONFIG_ARM64_LSE_ATOMICS)
 
+#define __LSE_PREAMBLE	".arch armv8-a+lse\n"
+
 #include <linux/compiler_types.h>
 #include <linux/export.h>
 #include <linux/stringify.h>
@@ -19,8 +21,6 @@
 .endm
 
 #else	/* __ASSEMBLER__ */
-
-__asm__(".arch_extension	lse");
 
 /* Move the ll/sc atomics out-of-line */
 #define __LL_SC_INLINE		notrace
