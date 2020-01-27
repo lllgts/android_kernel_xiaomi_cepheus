@@ -520,6 +520,8 @@ struct mm_struct {
 	atomic_long_t hugetlb_usage;
 #endif
 	struct work_struct async_put_work;
+	bool va_feature;
+	unsigned long va_feature_rnd;
 
 #if IS_ENABLED(CONFIG_HMM)
 	/* HMM needs to track a few things per mm */
@@ -528,6 +530,8 @@ struct mm_struct {
 } __randomize_layout;
 
 extern struct mm_struct init_mm;
+
+};
 
 static inline void mm_init_cpumask(struct mm_struct *mm)
 {
