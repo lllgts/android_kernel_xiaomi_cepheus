@@ -110,3 +110,5 @@ obj-$(CONFIG_HMM) += hmm.o
 obj-$(CONFIG_PROCESS_RECLAIM)	+= process_reclaim.o
 obj-$(CONFIG_HYPERHOLD) += memcg_reclaim.o
 obj-$(CONFIG_HYPERHOLD) += memcg_control.o
+
+CFLAGS_kmemleak.o += -DCONFIG_DEBUG_FS
