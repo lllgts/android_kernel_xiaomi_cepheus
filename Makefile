@@ -738,6 +738,10 @@ endif
 ifeq ($(cc-name),clang)
 KBUILD_CFLAGS	+= -mcpu=cortex-a55+crypto -mtune=cortex-a55
 endif
+ifeq ($(cc-name),gcc)
+KBUILD_CFLAGS	+= $(call cc-option, -mno-fix-cortex-a53-835769)
+KBUILD_CFLAGS	+= $(call cc-option, -mno-fix-cortex-a53-843419)
+endif
 endif
 
 ifdef CONFIG_POLLY_CLANG
