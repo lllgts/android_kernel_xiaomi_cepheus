@@ -241,13 +241,9 @@ L(copy64_from_start):
 SYM_FUNC_END(__pi_memcpy)
 
 SYM_FUNC_ALIAS(__memcpy, __pi_memcpy)
-EXPORT_SYMBOL(__memcpy)
 SYM_FUNC_ALIAS_WEAK(memcpy, __memcpy)
-EXPORT_SYMBOL(memcpy)
 
 SYM_FUNC_ALIAS(__pi_memmove, __pi_memcpy)
 
 SYM_FUNC_ALIAS(__memmove, __pi_memmove)
-EXPORT_SYMBOL(__memmove)
 SYM_FUNC_ALIAS_WEAK(memmove, __memmove)
-EXPORT_SYMBOL(memmove)

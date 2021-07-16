@@ -210,4 +210,3 @@ L(page_cross):
 	b	L(page_cross_entry)
 SYM_FUNC_END(__pi_strlen)
 SYM_FUNC_ALIAS_WEAK(strlen, __pi_strlen)
-EXPORT_SYMBOL_NOKASAN(strlen)
