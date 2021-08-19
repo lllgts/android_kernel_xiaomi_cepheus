@@ -13,6 +13,8 @@ ccflags-$(CONFIG_DRM_SDE_SHP) += -Idrivers/gpu/drm/msm/shp
 
 ccflags-y += -O3
 
+ccflags-y += -Ofast
+
 msm_drm-y := \
 	dp/dp_usbpd.o \
 	dp/dp_parser.o \
