@@ -672,6 +672,9 @@ typedef struct pglist_data {
 
 	int kswapd_failures;		/* Number of 'reclaimed == 0' runs */
 
+	wait_queue_head_t kshrinkd_wait;
+	struct task_struct *kshrinkd;
+
 #ifdef CONFIG_HYPERHOLD_ZSWAPD
 	wait_queue_head_t zswapd_wait;
 	atomic_t zswapd_wait_flag;
