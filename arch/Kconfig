@@ -1171,6 +1171,15 @@ config RELR
 	  well as compatible NM and OBJCOPY utilities (llvm-nm and llvm-objcopy
 	  are compatible).
 
+config ARCH_HAS_NONLEAF_PMD_YOUNG
+	bool
+	depends on PGTABLE_LEVELS > 2
+	help
+	  Architectures that select this option are capable of setting the
+	  accessed bit in non-leaf PMD entries when using them as part of linear
+	  address translations. Page table walkers that clear the accessed bit
+	  may use this capability to reduce their search space.
+	  
 config ARCH_HAS_VLA_CHECKS
 	bool "This architecture support VLA detection"
 	help
@@ -1208,6 +1217,5 @@ config VLA_ERROR_ON_DETECT
 	   a Variable Length Array.
 
 endchoice
-
 
 source "kernel/gcov/Kconfig"
