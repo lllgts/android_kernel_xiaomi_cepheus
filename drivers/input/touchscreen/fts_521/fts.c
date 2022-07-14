@@ -3647,7 +3647,6 @@ static void fts_gesture_event_handler(struct fts_ts_info *info,
 {
 	int value;
 	int needCoords = 0;
-	char ch[64] = { 0x0, };
 #ifdef CONFIG_FTS_FOD_AREA_REPORT
 	int touch_area;
 	int fod_overlap;
@@ -3728,8 +3727,6 @@ static void fts_gesture_event_handler(struct fts_ts_info *info,
 				goto gesture_done;
 			value = KEY_WAKEUP;
 			logError(0, "%s %s: double tap ! \n", tag, __func__);
-			info->dbclick_count++;
-			snprintf(ch, sizeof(ch), "%d", info->dbclick_count);
 			needCoords = 0;
 			break;
 
@@ -5288,7 +5285,6 @@ static void fts_switch_mode_work(struct work_struct *work)
 	static const char *fts_gesture_on = "01 20";
 	char *gesture_result;
 	int size = 6 * 2 + 1;
-	char ch[16] = { 0x0, };
 
 	logError(1, "%s %s mode:%d\n", tag, __func__, value);
 
@@ -5312,9 +5308,6 @@ static void fts_switch_mode_work(struct work_struct *work)
 				gesture_result = NULL;
 			}
 		}
-		snprintf(ch, sizeof(ch), "%s",
-			 (value -
-			  INPUT_EVENT_WAKUP_MODE_OFF) ? "enabled" : "disabled");
 	} else if (value >= INPUT_EVENT_COVER_MODE_OFF
 		   && value <= INPUT_EVENT_COVER_MODE_ON) {
 		info->glove_enabled = value - INPUT_EVENT_COVER_MODE_OFF;
@@ -5806,7 +5799,6 @@ static int fts_probe(struct spi_device *client)
 	int retval;
 	int skip_5_1 = 0;
 	u16 bus_type;
-	u8 *tp_maker;
 
 	logError(1, "%s %s: driver ver: %s\n", tag, __func__,
 		 FTS_TS_DRV_VERSION);
@@ -6175,15 +6167,7 @@ static int fts_probe(struct spi_device *client)
 	error = fts_proc_init();
 	if (error < OK)
 		logError(1, "%s Error: can not create /proc file! \n", tag);
-	info->dbclick_count = 0;
 
-	tp_maker = kzalloc(20, GFP_KERNEL);
-	if (tp_maker == NULL)
-		logError(1, "%s fail to alloc vendor name memory\n", tag);
-	else {
-		kfree(tp_maker);
-		tp_maker = NULL;
-	}
 	device_init_wakeup(&client->dev, 1);
 
 	init_completion(&info->pm_resume_completion);

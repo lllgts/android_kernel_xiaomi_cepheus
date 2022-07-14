@@ -331,7 +331,6 @@ struct fts_ts_info {
 	unsigned int doze_time;
 	unsigned int grip_pixel_def;
 	unsigned int doze_time_def;
-	int dbclick_count;
 	struct class *fts_tp_class;
 	struct device *fts_touch_dev;
 	char *current_clicknum_file;
