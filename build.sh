@@ -26,9 +26,7 @@ echo "打包内核ing "
 echo "Packing the kernel..."
 
 rm -rf anykernel3/Image.gz-dtb
-rm -rf anykernel3/dtbo.img
 cp out/arch/arm64/boot/Image.gz-dtb anykernel3
-cp out/arch/arm64/boot/dtbo.img anykernel3
 cd anykernel3
 rm *.zip
 zip -q -r Sakura-$name.zip *
