@@ -769,6 +769,7 @@ struct task_struct {
 	atomic_t			usage;
 	/* Per task flags (PF_*), defined further below: */
 	unsigned int			flags;
+	unsigned int			pc_flags;
 #ifdef CONFIG_HW_CGROUP_WORKINGSET
 	unsigned int                    ext_flags;
 #endif
