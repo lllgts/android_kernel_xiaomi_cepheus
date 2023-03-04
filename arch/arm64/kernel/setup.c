@@ -276,7 +276,7 @@ const char * __init __weak arch_read_machine_name(void)
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
 	int size;
-	void *dt_virt = fixmap_remap_fdt(dt_phys);
+	void *dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
 	const char *machine_name;
 
 	if (dt_virt)
