@@ -2007,12 +2007,9 @@ static void functionfs_unbind(struct ffs_data *ffs)
 		ffs->ep0req = NULL;
 		ffs->gadget = NULL;
 		clear_bit(FFS_FL_BOUND, &ffs->flags);
-<<<<<<< HEAD
 		ffs_log("state %d setup_state %d flag %lu gadget %pK\n",
 			ffs->state, ffs->setup_state, ffs->flags, ffs->gadget);
-=======
 		mutex_unlock(&ffs->mutex);
->>>>>>> 8a685dfcaec2853f96f8256d57644bfe4b069f64
 		ffs_data_put(ffs);
 	}
 }
