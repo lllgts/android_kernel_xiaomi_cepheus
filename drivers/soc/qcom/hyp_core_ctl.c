@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/cpu.h>
 #include <linux/cpu_cooling.h>
 #include <linux/mutex.h>
 #include <linux/debugfs.h>
