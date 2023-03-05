@@ -5,7 +5,7 @@ args="-j$(nproc --all) \
 	ARCH=arm64 \
 	CLANG_TRIPLE=aarch64-linux-gnu- \
 	CROSS_COMPILE=/home/lllgts/clang13/bin/aarch64-linux-gnu- \
-	CC=/home/lllgts/clang/clang-r450784e/bin/clang \
+	CC=/home/lllgts/clang/clang-r475365b/bin/clang \
 	CROSS_COMPILE_ARM32=/home/lllgts/clang13/bin/arm-linux-gnueabi- "
 	make ${args} cepheus_defconfig
 	make ${args}
