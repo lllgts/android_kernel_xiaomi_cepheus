@@ -246,13 +246,12 @@ static void __static_key_slow_dec(struct static_key *key,
 	cpus_read_unlock();
 }
 
-void jump_label_update_timeout(struct work_struct *work)
+static void jump_label_update_timeout(struct work_struct *work)
 {
 	struct static_key_deferred *key =
 		container_of(work, struct static_key_deferred, work.work);
 	__static_key_slow_dec(&key->key, 0, NULL);
 }
-EXPORT_SYMBOL_GPL(jump_label_update_timeout);
 
 void static_key_slow_dec(struct static_key *key)
 {
@@ -267,21 +266,19 @@ void static_key_slow_dec_cpuslocked(struct static_key *key)
 	__static_key_slow_dec_cpuslocked(key, 0, NULL);
 }
 
-void __static_key_slow_dec_deferred(struct static_key *key,
-				    struct delayed_work *work,
-				    unsigned long timeout)
+void static_key_slow_dec_deferred(struct static_key_deferred *key)
 {
 	STATIC_KEY_CHECK_USE();
-	__static_key_slow_dec(key, timeout, work);
+	__static_key_slow_dec(&key->key, key->timeout, &key->work);
 }
-EXPORT_SYMBOL_GPL(__static_key_slow_dec_deferred);
+EXPORT_SYMBOL_GPL(static_key_slow_dec_deferred);
 
-void __static_key_deferred_flush(void *key, struct delayed_work *work)
+void static_key_deferred_flush(struct static_key_deferred *key)
 {
 	STATIC_KEY_CHECK_USE();
-	flush_delayed_work(work);
+	flush_delayed_work(&key->work);
 }
-EXPORT_SYMBOL_GPL(__static_key_deferred_flush);
+EXPORT_SYMBOL_GPL(static_key_deferred_flush);
 
 void jump_label_rate_limit(struct static_key_deferred *key,
 		unsigned long rl)
