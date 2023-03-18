@@ -314,11 +314,6 @@ struct mem_cgroup *get_next_memcg(struct mem_cgroup *prev);
 void get_next_memcg_break(struct mem_cgroup *prev);
 #endif
 
-static inline bool mem_cgroup_is_root(struct mem_cgroup *memcg)
-{
-	return (memcg == root_mem_cgroup);
-}
-
 static inline bool mem_cgroup_disabled(void)
 {
 	return !cgroup_subsys_enabled(memory_cgrp_subsys);
@@ -806,11 +801,6 @@ void mem_cgroup_split_huge_fixup(struct page *head);
 #define MEM_CGROUP_ID_MAX	0
 
 struct mem_cgroup;
-
-static inline bool mem_cgroup_is_root(struct mem_cgroup *memcg)
-{
-	return true;
-}
 
 static inline bool mem_cgroup_disabled(void)
 {
