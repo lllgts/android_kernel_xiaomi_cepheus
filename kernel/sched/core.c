@@ -69,16 +69,6 @@ const_debug unsigned int sysctl_sched_features =
  */
 const_debug unsigned int sysctl_sched_nr_migrate = 32;
 
-#ifdef CONFIG_CFS_BANDWIDTH
-/*
- * Percent of burst assigned to cfs_b->runtime on tg_set_cfs_bandwidth,
- * 0 by default.
- */
-unsigned int sysctl_sched_cfs_bw_burst_onset_percent = 60;
-
-unsigned int sysctl_sched_cfs_bw_burst_enabled = 1;
-#endif
-
 /*
  * period over which we average the RT time consumption, measured
  * in ms.
@@ -1160,7 +1150,8 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	cpumask_andnot(&allowed_mask, new_mask, cpu_isolated_mask);
 	cpumask_and(&allowed_mask, &allowed_mask, cpu_valid_mask);
 
-	if (!cpumask_intersects(new_mask, cpu_valid_mask)) {
+	dest_cpu = cpumask_any(&allowed_mask);
+	if (dest_cpu >= nr_cpu_ids) {
 		cpumask_and(&allowed_mask, cpu_valid_mask, new_mask);
 		dest_cpu = cpumask_any(&allowed_mask);
 		if (!cpumask_intersects(new_mask, cpu_valid_mask)) {
@@ -1185,7 +1176,6 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	if (cpumask_test_cpu(task_cpu(p), &allowed_mask))
 		goto out;
 
-	dest_cpu = cpumask_any_and(cpu_valid_mask, new_mask);
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
 		struct migration_arg arg = { p, dest_cpu };
 		/* Need help from migration thread: drop lock and wait. */
@@ -2108,7 +2098,7 @@ static inline void walt_try_to_wake_up(struct task_struct *p)
 
 	rcu_read_lock();
 	grp = task_related_thread_group(p);
-	if (update_preferred_cluster(grp, p, old_load, false))
+	if (update_preferred_cluster(grp, p, old_load))
 		set_preferred_cluster(grp);
 	rcu_read_unlock();
 }
@@ -3248,7 +3238,7 @@ void scheduler_tick(void)
 
 	rcu_read_lock();
 	grp = task_related_thread_group(curr);
-	if (update_preferred_cluster(grp, curr, old_load, true))
+	if (update_preferred_cluster(grp, curr, old_load))
 		set_preferred_cluster(grp);
 	rcu_read_unlock();
 
@@ -3987,7 +3977,8 @@ void rt_mutex_setprio(struct task_struct *p, struct task_struct *pi_task)
 	 */
 	if (dl_prio(prio)) {
 		if (!dl_prio(p->normal_prio) ||
-		    (pi_task && dl_entity_preempt(&pi_task->dl, &p->dl))) {
+		    (pi_task && dl_prio(pi_task->prio) &&
+		     dl_entity_preempt(&pi_task->dl, &p->dl))) {
 			p->dl.dl_boosted = 1;
 			queue_flag |= ENQUEUE_REPLENISH;
 		} else
@@ -6272,6 +6263,7 @@ int sched_cpu_activate(unsigned int cpu)
 	rq_unlock_irqrestore(rq, &rf);
 
 	update_max_interval();
+	walt_update_min_max_capacity();
 
 	return 0;
 }
@@ -6311,6 +6303,7 @@ int sched_cpu_deactivate(unsigned int cpu)
 		return ret;
 	}
 	sched_domains_numa_masks_clear(cpu);
+	walt_update_min_max_capacity();
 	return 0;
 }
 
@@ -6919,6 +6912,153 @@ void sched_move_task(struct task_struct *tsk)
 	task_rq_unlock(rq, tsk, &rf);
 }
 
+#ifdef CONFIG_PROC_SYSCTL
+static int find_capacity_margin_levels(void)
+{
+	int cpu, max_clusters;
+
+	for (cpu = max_clusters = 0; cpu < num_possible_cpus();) {
+		cpu += cpumask_weight(topology_core_cpumask(cpu));
+		max_clusters++;
+	}
+
+	/*
+	 * Capacity margin levels is number of clusters available in
+	 * the system subtracted by 1.
+	 */
+	return max_clusters - 1;
+}
+
+static void sched_update_up_migrate_values(int cap_margin_levels,
+				const struct cpumask *cluster_cpus[])
+{
+	int i, cpu;
+
+	if (cap_margin_levels > 1) {
+		/*
+		 * No need to worry about CPUs in last cluster
+		 * if there are more than 2 clusters in the system
+		 */
+		for (i = 0; i < cap_margin_levels; i++)
+			if (cluster_cpus[i])
+				for_each_cpu(cpu, cluster_cpus[i])
+					sched_capacity_margin_up[cpu] =
+					sysctl_sched_capacity_margin_up[i];
+	} else {
+		for_each_possible_cpu(cpu)
+			sched_capacity_margin_up[cpu] =
+				sysctl_sched_capacity_margin_up[0];
+	}
+}
+
+static void sched_update_down_migrate_values(int cap_margin_levels,
+				const struct cpumask *cluster_cpus[])
+{
+	int i, cpu;
+
+	if (cap_margin_levels > 1) {
+		/*
+		 * Skip first cluster as down migrate value isn't needed
+		 */
+		for (i = 0; i < cap_margin_levels; i++)
+			if (cluster_cpus[i+1])
+				for_each_cpu(cpu, cluster_cpus[i+1])
+					sched_capacity_margin_down[cpu] =
+					sysctl_sched_capacity_margin_down[i];
+	} else {
+		for_each_possible_cpu(cpu)
+			sched_capacity_margin_down[cpu] =
+				sysctl_sched_capacity_margin_down[0];
+	}
+}
+
+static void sched_update_updown_migrate_values(unsigned int *data,
+					      int cap_margin_levels)
+{
+	int i, cpu;
+	static const struct cpumask *cluster_cpus[MAX_CLUSTERS];
+
+	for (i = cpu = 0; (!cluster_cpus[i]) &&
+				cpu < num_possible_cpus(); i++) {
+		cluster_cpus[i] = topology_core_cpumask(cpu);
+		cpu += cpumask_weight(topology_core_cpumask(cpu));
+	}
+
+	if (data == &sysctl_sched_capacity_margin_up[0])
+		sched_update_up_migrate_values(cap_margin_levels, cluster_cpus);
+	else
+		sched_update_down_migrate_values(cap_margin_levels,
+						 cluster_cpus);
+}
+
+int sched_updown_migrate_handler(struct ctl_table *table, int write,
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos)
+{
+	int ret, i;
+	unsigned int *data = (unsigned int *)table->data;
+	unsigned int *old_val;
+	static DEFINE_MUTEX(mutex);
+	static int cap_margin_levels = -1;
+
+	mutex_lock(&mutex);
+
+	if (cap_margin_levels == -1 ||
+		table->maxlen != (sizeof(unsigned int) * cap_margin_levels)) {
+		cap_margin_levels = find_capacity_margin_levels();
+		table->maxlen = sizeof(unsigned int) * cap_margin_levels;
+	}
+
+	if (cap_margin_levels <= 0) {
+		ret = -EINVAL;
+		goto unlock_mutex;
+	}
+
+	if (!write) {
+		ret = proc_douintvec_capacity(table, write, buffer, lenp, ppos);
+		goto unlock_mutex;
+	}
+
+	/*
+	 * Cache the old values so that they can be restored
+	 * if either the write fails (for example out of range values)
+	 * or the downmigrate and upmigrate are not in sync.
+	 */
+	old_val = kzalloc(table->maxlen, GFP_KERNEL);
+	if (!old_val) {
+		ret = -ENOMEM;
+		goto unlock_mutex;
+	}
+
+	memcpy(old_val, data, table->maxlen);
+
+	ret = proc_douintvec_capacity(table, write, buffer, lenp, ppos);
+
+	if (ret) {
+		memcpy(data, old_val, table->maxlen);
+		goto free_old_val;
+	}
+
+	for (i = 0; i < cap_margin_levels; i++) {
+		if (sysctl_sched_capacity_margin_up[i] >
+				sysctl_sched_capacity_margin_down[i]) {
+			memcpy(data, old_val, table->maxlen);
+			ret = -EINVAL;
+			goto free_old_val;
+		}
+	}
+
+	sched_update_updown_migrate_values(data, cap_margin_levels);
+
+free_old_val:
+	kfree(old_val);
+unlock_mutex:
+	mutex_unlock(&mutex);
+
+	return ret;
+}
+#endif
+
 static inline struct task_group *css_tg(struct cgroup_subsys_state *css)
 {
 	return css ? container_of(css, struct task_group, css) : NULL;
@@ -7049,17 +7189,13 @@ static DEFINE_MUTEX(cfs_constraints_mutex);
 
 const u64 max_cfs_quota_period = 1 * NSEC_PER_SEC; /* 1s */
 const u64 min_cfs_quota_period = 1 * NSEC_PER_MSEC; /* 1ms */
-/* More than 203 days if BW_SHIFT equals 20. */
-const u64 max_cfs_runtime = MAX_BW_USEC * NSEC_PER_USEC;
 
 static int __cfs_schedulable(struct task_group *tg, u64 period, u64 runtime);
 
-static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
-						u64 burst, u64 init_buffer)
+static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota)
 {
 	int i, ret = 0, runtime_enabled, runtime_was_enabled;
 	struct cfs_bandwidth *cfs_b = &tg->cfs_bandwidth;
-	u64 buffer, burst_onset;
 
 	if (tg == &root_task_group)
 		return -EINVAL;
@@ -7081,22 +7217,6 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
 		return -EINVAL;
 
 	/*
-	 * Bound quota to defend quota against overflow during bandwidth shift.
-	 */
-	if (quota != RUNTIME_INF && quota > max_cfs_runtime)
-		return -EINVAL;
-
-	/*
-	 * Bound burst to defend burst against overflow during bandwidth shift.
-	 */
-	if (burst > max_cfs_runtime || init_buffer > max_cfs_runtime)
-		return -EINVAL;
-
-	if (quota == RUNTIME_INF)
-		buffer = max_cfs_runtime;
-	else
-		buffer = min(max_cfs_runtime, quota + burst);
-	/*
 	 * Prevent race between setting of cfs_rq->runtime_enabled and
 	 * unthrottle_offline_cfs_rqs().
 	 */
@@ -7117,32 +7237,12 @@ static int tg_set_cfs_bandwidth(struct task_group *tg, u64 period, u64 quota,
 	raw_spin_lock_irq(&cfs_b->lock);
 	cfs_b->period = ns_to_ktime(period);
 	cfs_b->quota = quota;
-	cfs_b->burst = burst;
-	cfs_b->buffer = buffer;
-	cfs_b->init_buffer = init_buffer;
 
-	cfs_b->max_overrun = DIV_ROUND_UP_ULL(max_cfs_runtime, quota);
-	cfs_b->runtime = cfs_b->quota;
-
-	/* burst_onset needed */
-	if (cfs_b->quota != RUNTIME_INF &&
-			sysctl_sched_cfs_bw_burst_enabled &&
-			sysctl_sched_cfs_bw_burst_onset_percent > 0) {
-
-		burst_onset = burst / 100 *
-			sysctl_sched_cfs_bw_burst_onset_percent;
-
-		cfs_b->runtime += burst_onset;
-		cfs_b->runtime = min(max_cfs_runtime, cfs_b->runtime);
-	}
-
-	cfs_b->runtime = max(cfs_b->runtime, init_buffer);
-	cfs_b->current_buffer = max(cfs_b->buffer, init_buffer);
-	cfs_b->previous_runtime = cfs_b->runtime;
+	__refill_cfs_bandwidth_runtime(cfs_b);
 
 	/* Restart the period timer (if active) to handle new period expiry: */
 	if (runtime_enabled)
-		start_cfs_bandwidth(cfs_b, 1);
+		start_cfs_bandwidth(cfs_b);
 
 	raw_spin_unlock_irq(&cfs_b->lock);
 
@@ -7170,11 +7270,9 @@ out_unlock:
 
 int tg_set_cfs_quota(struct task_group *tg, long cfs_quota_us)
 {
-	u64 quota, period, burst, init_buffer;
+	u64 quota, period;
 
 	period = ktime_to_ns(tg->cfs_bandwidth.period);
-	burst = tg->cfs_bandwidth.burst;
-	init_buffer = tg->cfs_bandwidth.init_buffer;
 	if (cfs_quota_us < 0)
 		quota = RUNTIME_INF;
 	else if ((u64)cfs_quota_us <= U64_MAX / NSEC_PER_USEC)
@@ -7182,7 +7280,7 @@ int tg_set_cfs_quota(struct task_group *tg, long cfs_quota_us)
 	else
 		return -EINVAL;
 
-	return tg_set_cfs_bandwidth(tg, period, quota, burst, init_buffer);
+	return tg_set_cfs_bandwidth(tg, period, quota);
 }
 
 long tg_get_cfs_quota(struct task_group *tg)
@@ -7200,17 +7298,15 @@ long tg_get_cfs_quota(struct task_group *tg)
 
 int tg_set_cfs_period(struct task_group *tg, long cfs_period_us)
 {
-	u64 quota, period, burst, init_buffer;
+	u64 quota, period;
 
 	if ((u64)cfs_period_us > U64_MAX / NSEC_PER_USEC)
 		return -EINVAL;
 
 	period = (u64)cfs_period_us * NSEC_PER_USEC;
 	quota = tg->cfs_bandwidth.quota;
-	burst = tg->cfs_bandwidth.burst;
-	init_buffer = tg->cfs_bandwidth.init_buffer;
 
-	return tg_set_cfs_bandwidth(tg, period, quota, burst, init_buffer);
+	return tg_set_cfs_bandwidth(tg, period, quota);
 }
 
 long tg_get_cfs_period(struct task_group *tg)
@@ -7221,66 +7317,6 @@ long tg_get_cfs_period(struct task_group *tg)
 	do_div(cfs_period_us, NSEC_PER_USEC);
 
 	return cfs_period_us;
-}
-
-int tg_set_cfs_burst(struct task_group *tg, long cfs_burst_us)
-{
-	u64 quota, period, burst, init_buffer;
-
-	period = ktime_to_ns(tg->cfs_bandwidth.period);
-	quota = tg->cfs_bandwidth.quota;
-	init_buffer = tg->cfs_bandwidth.init_buffer;
-	if (cfs_burst_us < 0)
-		burst = RUNTIME_INF;
-	else if ((u64)cfs_burst_us <= U64_MAX / NSEC_PER_USEC)
-		burst = (u64)cfs_burst_us * NSEC_PER_USEC;
-	else
-		return -EINVAL;
-
-	return tg_set_cfs_bandwidth(tg, period, quota, burst, init_buffer);
-}
-
-long tg_get_cfs_burst(struct task_group *tg)
-{
-	u64 burst_us;
-
-	if (tg->cfs_bandwidth.burst == RUNTIME_INF)
-		return -1;
-
-	burst_us = tg->cfs_bandwidth.burst;
-	do_div(burst_us, NSEC_PER_USEC);
-
-	return burst_us;
-}
-
-int tg_set_cfs_init_buffer(struct task_group *tg, long cfs_init_buffer_us)
-{
-	u64 quota, period, burst, init_buffer;
-
-	period = ktime_to_ns(tg->cfs_bandwidth.period);
-	quota = tg->cfs_bandwidth.quota;
-	burst = tg->cfs_bandwidth.burst;
-	if (cfs_init_buffer_us < 0)
-		init_buffer = RUNTIME_INF;
-	else if ((u64)cfs_init_buffer_us <= U64_MAX / NSEC_PER_USEC)
-		init_buffer = (u64)cfs_init_buffer_us * NSEC_PER_USEC;
-	else
-		return -EINVAL;
-
-	return tg_set_cfs_bandwidth(tg, period, quota, burst, init_buffer);
-}
-
-long tg_get_cfs_init_buffer(struct task_group *tg)
-{
-	u64 init_buffer_us;
-
-	if (tg->cfs_bandwidth.init_buffer == RUNTIME_INF)
-		return -1;
-
-	init_buffer_us = tg->cfs_bandwidth.init_buffer;
-	do_div(init_buffer_us, NSEC_PER_USEC);
-
-	return init_buffer_us;
 }
 
 static s64 cpu_cfs_quota_read_s64(struct cgroup_subsys_state *css,
@@ -7305,30 +7341,6 @@ static int cpu_cfs_period_write_u64(struct cgroup_subsys_state *css,
 				    struct cftype *cftype, u64 cfs_period_us)
 {
 	return tg_set_cfs_period(css_tg(css), cfs_period_us);
-}
-
-static s64 cpu_cfs_burst_read_s64(struct cgroup_subsys_state *css,
-				  struct cftype *cft)
-{
-	return tg_get_cfs_burst(css_tg(css));
-}
-
-static int cpu_cfs_burst_write_s64(struct cgroup_subsys_state *css,
-				   struct cftype *cftype, s64 cfs_burst_us)
-{
-	return tg_set_cfs_burst(css_tg(css), cfs_burst_us);
-}
-
-static s64 cpu_cfs_init_buffer_read_s64(struct cgroup_subsys_state *css,
-				  struct cftype *cft)
-{
-	return tg_get_cfs_init_buffer(css_tg(css));
-}
-
-static int cpu_cfs_init_buffer_write_s64(struct cgroup_subsys_state *css,
-			   struct cftype *cftype, s64 cfs_init_buffer_us)
-{
-	return tg_set_cfs_init_buffer(css_tg(css), cfs_init_buffer_us);
 }
 
 struct cfs_schedulable_data {
@@ -7418,20 +7430,6 @@ static int cpu_stats_show(struct seq_file *sf, void *v)
 	seq_printf(sf, "nr_throttled %d\n", cfs_b->nr_throttled);
 	seq_printf(sf, "throttled_time %llu\n", cfs_b->throttled_time);
 
-	if (schedstat_enabled() && tg != &root_task_group) {
-		u64 ws = 0;
-		int i;
-
-		for_each_possible_cpu(i)
-			ws += schedstat_val(tg->se[i]->statistics.wait_sum);
-
-		seq_printf(sf, "wait_sum %llu\n", ws);
-	}
-
-	seq_printf(sf, "current_bw %llu\n", cfs_b->runtime);
-	seq_printf(sf, "nr_burst %d\n", cfs_b->nr_burst);
-	seq_printf(sf, "burst_time %llu\n", cfs_b->burst_time);
-
 	return 0;
 }
 #endif /* CONFIG_CFS_BANDWIDTH */
@@ -7481,16 +7479,6 @@ static struct cftype cpu_files[] = {
 		.name = "cfs_period_us",
 		.read_u64 = cpu_cfs_period_read_u64,
 		.write_u64 = cpu_cfs_period_write_u64,
-	},
-	{
-		.name = "cfs_burst_us",
-		.read_s64 = cpu_cfs_burst_read_s64,
-		.write_s64 = cpu_cfs_burst_write_s64,
-	},
-	{
-		.name = "cfs_init_buffer_us",
-		.read_s64 = cpu_cfs_init_buffer_read_s64,
-		.write_s64 = cpu_cfs_init_buffer_write_s64,
 	},
 	{
 		.name = "stat",
