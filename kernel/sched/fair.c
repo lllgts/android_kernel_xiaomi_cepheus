@@ -6119,8 +6119,6 @@ static unsigned long group_max_util(struct energy_env *eenv, int cpu_idx)
 		max_util = max(max_util, util);
 	}
 
-		max_util = max(max_util, is_min_capacity_cpu(cpu));
-
 	return max_util;
 }
 
