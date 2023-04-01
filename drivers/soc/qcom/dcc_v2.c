@@ -1939,7 +1939,7 @@ static int dcc_v2_restore(struct device *dev)
 	data = drvdata->sram_save_state;
 
 	for (i = 0; i < drvdata->ram_size / 4; i++)
-		__raw_writel_no_log(data[i],
+		__raw_writel(data[i],
 					drvdata->ram_base + (i * 4));
 
 	state = drvdata->reg_save_state;
