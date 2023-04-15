@@ -532,7 +532,6 @@ struct mm_struct {
 
 extern struct mm_struct init_mm;
 
-};
 
 static inline void mm_init_cpumask(struct mm_struct *mm)
 {
