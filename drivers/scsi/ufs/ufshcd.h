@@ -599,8 +599,7 @@ enum ts_types {
 	TS_URGENT_READ		= 3,
 	TS_URGENT_WRITE		= 4,
 	TS_FLUSH		= 5,
-	TS_DISCARD		= 6,
-	TS_NUM_STATS		= 7,
+	TS_NUM_STATS		= 6,
 };
 
 /**
