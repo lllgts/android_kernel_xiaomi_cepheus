@@ -529,8 +529,8 @@ static int ufsdbg_tag_stats_show(struct seq_file *file, void *data)
 			seq_puts(file, sep);
 	}
 	seq_printf(file,
-		"\n #\tnum uses\t%s\t #\tAll\tRead\tWrite\tUrg.R\tUrg.W\tFlush"
-		"\tDiscard\n", sep);
+		"\n #\tnum uses\t%s\t #\tAll\tRead\tWrite\tUrg.R\tUrg.W\tFlush\n",
+		sep);
 
 	/* values */
 	for (i = 0; i < max_depth; i++) {
@@ -539,8 +539,7 @@ static int ufsdbg_tag_stats_show(struct seq_file *file, void *data)
 				ufs_stats->tag_stats[i][TS_WRITE] <= 0 &&
 				ufs_stats->tag_stats[i][TS_URGENT_READ] <= 0 &&
 				ufs_stats->tag_stats[i][TS_URGENT_WRITE] <= 0 &&
-				ufs_stats->tag_stats[i][TS_FLUSH] <= 0 &&
-				ufs_stats->tag_stats[i][TS_DISCARD] <= 0)
+				ufs_stats->tag_stats[i][TS_FLUSH] <= 0)
 			continue;
 
 		is_tag_empty = false;
@@ -554,8 +553,7 @@ static int ufsdbg_tag_stats_show(struct seq_file *file, void *data)
 				ufs_stats->tag_stats[i][TS_WRITE] +
 				ufs_stats->tag_stats[i][TS_URGENT_READ] +
 				ufs_stats->tag_stats[i][TS_URGENT_WRITE] +
-				ufs_stats->tag_stats[i][TS_FLUSH] +
-				ufs_stats->tag_stats[i][TS_DISCARD]);
+				ufs_stats->tag_stats[i][TS_FLUSH]);
 		}
 		seq_puts(file, "\n");
 	}
@@ -1486,9 +1484,8 @@ static int ufsdbg_req_stats_show(struct seq_file *file, void *data)
 	unsigned long flags;
 
 	/* Header */
-	seq_printf(file, "\t%-10s %-10s %-10s %-10s %-10s %-10s %-10s",
-		"All", "Write", "Read", "Read(urg)", "Write(urg)", "Flush",
-		"Discard");
+	seq_printf(file, "\t%-10s %-10s %-10s %-10s %-10s %-10s",
+		"All", "Write", "Read", "Read(urg)", "Write(urg)", "Flush");
 
 	spin_lock_irqsave(hba->host->host_lock, flags);
 
