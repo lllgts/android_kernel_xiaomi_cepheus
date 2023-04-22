@@ -10826,14 +10826,14 @@ static const struct attribute_group ufshcd_attr_group = {
 };
 
 struct health_attr {
-	struct device_attribute attr;
+	struct attribute attr;
+	ssize_t (*show)(struct device *, struct health_attr *, char *);
 	int bytes;
 };
 
 static ssize_t health_attr_show(struct device *dev,
-				struct device_attribute *_attr, char *buf)
+				struct health_attr *attr, char *buf)
 {
-	struct health_attr *attr = (struct health_attr *)_attr;
 	struct ufs_hba *hba = dev_get_drvdata(dev);
 	int buff_len = hba->desc_size.health_desc;
 	u8 *desc_buf = NULL;
@@ -10859,13 +10859,8 @@ static ssize_t health_attr_show(struct device *dev,
 
 #define HEALTH_ATTR_RO(_name, _bytes)					\
 static struct health_attr ufs_health_##_name = {			\
-	.attr = {							\
-		.attr = {						\
-			.name = __stringify(_name),			\
-			.mode = 0444					\
-		},							\
-		.show = health_attr_show,				\
-	},								\
+	.attr = {.name = __stringify(_name), .mode = 0444},		\
+	.show = health_attr_show,					\
 	.bytes = _bytes,						\
 }
 
@@ -10876,11 +10871,11 @@ HEALTH_ATTR_RO(lifetimeA, 3);
 HEALTH_ATTR_RO(lifetimeB, 4);
 
 static struct attribute *ufshcd_health_attrs[] = {
-	&ufs_health_length.attr.attr,
-	&ufs_health_type.attr.attr,
-	&ufs_health_eol.attr.attr,
-	&ufs_health_lifetimeA.attr.attr,
-	&ufs_health_lifetimeB.attr.attr,
+	&ufs_health_length.attr,
+	&ufs_health_type.attr,
+	&ufs_health_eol.attr,
+	&ufs_health_lifetimeA.attr,
+	&ufs_health_lifetimeB.attr,
 	NULL
 };
 
