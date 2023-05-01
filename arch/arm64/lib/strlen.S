@@ -8,6 +8,7 @@
 
 #include <linux/linkage.h>
 #include <asm/assembler.h>
+#include <asm/mte-def.h>
 
 /* Assumptions:
  *
@@ -42,7 +43,16 @@
 #define REP8_7f 0x7f7f7f7f7f7f7f7f
 #define REP8_80 0x8080808080808080
 
+/*
+ * When KASAN_HW_TAGS is in use, memory is checked at MTE_GRANULE_SIZE
+ * (16-byte) granularity, and we must ensure that no access straddles this
+ * alignment boundary.
+ */
+#ifdef CONFIG_KASAN_HW_TAGS
+#define MIN_PAGE_SIZE MTE_GRANULE_SIZE
+#else
 #define MIN_PAGE_SIZE 4096
+#endif
 
 	/* Since strings are short on average, we check the first 16 bytes
 	   of the string for a NUL character.  In order to do an unaligned ldp
@@ -69,7 +79,7 @@
 	   whether the first fetch, which may be misaligned, crosses a page
 	   boundary.  */
 
-SYM_FUNC_START_WEAK_PI(strlen)
+SYM_FUNC_START(__pi_strlen)
 	and	tmp1, srcin, MIN_PAGE_SIZE - 1
 	mov	zeroones, REP8_01
 	cmp	tmp1, MIN_PAGE_SIZE - 16
@@ -198,5 +208,6 @@ L(page_cross):
 	csel	data1, data1, tmp4, eq
 	csel	data2, data2, tmp2, eq
 	b	L(page_cross_entry)
-
-SYM_FUNC_END_PI(strlen)
+SYM_FUNC_END(__pi_strlen)
+SYM_FUNC_ALIAS_WEAK(strlen, __pi_strlen)
+EXPORT_SYMBOL_NOKASAN(strlen)
