@@ -7,7 +7,7 @@ args="-j$(nproc --all) \
 	CROSS_COMPILE=/home/lllgts/clang13/bin/aarch64-linux-gnu- \
 	CC=/home/lllgts/clang/clang-r475365b/bin/clang \
 	CROSS_COMPILE_ARM32=/home/lllgts/clang13/bin/arm-linux-gnueabi- "
-	make ${args} cepheus_defconfig
+	make ${args} sakura_defconfig
 	make ${args}
 
 echo "桜 已经编译完成啦!"
@@ -27,6 +27,7 @@ echo "Packing the kernel..."
 
 rm -rf anykernel3/Image.gz-dtb
 cp out/arch/arm64/boot/Image.gz-dtb anykernel3
+cp out/arch/arm64/boot/dtbo.img anykernel3
 cd anykernel3
 rm *.zip
 zip -q -r Sakura-$name.zip *
