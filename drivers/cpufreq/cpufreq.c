@@ -2287,6 +2287,7 @@ static int cpufreq_set_policy(struct cpufreq_policy *policy,
 	policy->max = new_policy->max;
 
 	arch_set_max_freq_scale(policy->cpus, policy->max);
+	arch_set_min_freq_scale(policy->cpus, policy->min);
 
 	trace_cpu_frequency_limits(policy->max, policy->min, policy->cpu);
 
@@ -2503,6 +2504,12 @@ __weak void arch_set_max_freq_scale(struct cpumask *cpus,
 {
 }
 EXPORT_SYMBOL_GPL(arch_set_max_freq_scale);
+
+__weak void arch_set_min_freq_scale(struct cpumask *cpus,
+				    unsigned long policy_max_freq)
+{
+}
+EXPORT_SYMBOL_GPL(arch_set_min_freq_scale);
 
 /*********************************************************************
  *               REGISTER / UNREGISTER CPUFREQ DRIVER                *

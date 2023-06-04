@@ -102,6 +102,14 @@ SCHED_FEAT(ENERGY_AWARE, false)
 #endif
 
 /*
+ * Minimum capacity capping. Keep track of minimum capacity factor when
+ * minimum frequency available to a policy is modified.
+ * If enabled, this can be used to inform the scheduler about capacity
+ * restrictions.
+ */
+SCHED_FEAT(MIN_CAPACITY_CAPPING, true)
+
+/*
  * Energy aware scheduling algorithm choices:
  * EAS_PREFER_IDLE
  *   Direct tasks in a schedtune.prefer_idle=1 group through

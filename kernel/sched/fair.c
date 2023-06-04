@@ -5838,6 +5838,22 @@ unsigned long capacity_curr_of(int cpu)
 	return cap_scale(max_cap, scale_freq);
 }
 
+/*
+ * Returns the current capacity of cpu after applying both
+ * cpu and min freq scaling.
+ */
+unsigned long capacity_min_of(int cpu)
+{
+	if (!sched_feat(MIN_CAPACITY_CAPPING))
+		return 0;
+	
+    unsigned long min_cap =	arch_scale_min_freq_capacity(NULL, cpu);
+	unsigned long scale_freq = arch_scale_freq_capacity(NULL, cpu);
+
+	return cap_scale(min_cap, scale_freq);
+	
+}
+
 inline bool energy_aware(void)
 {
 	return sysctl_sched_energy_aware;
@@ -6165,6 +6181,14 @@ static unsigned long group_max_util(struct energy_env *eenv, int cpu_idx)
 			util += eenv->util_delta_boosted;
 
 		max_util = max(max_util, util);
+
+		/*
+		 * Take into account any minimum frequency imposed
+		 * elsewhere which limits the energy states available
+		 * If the MIN_CAPACITY_CAPPING feature is not enabled
+		 * capacity_min_of will return 0 (not capped).
+		 */
+		max_util = max(max_util, capacity_min_of(cpu));
 	}
 
 	return max_util;
