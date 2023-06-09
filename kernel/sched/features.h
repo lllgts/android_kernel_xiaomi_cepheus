@@ -142,4 +142,4 @@ SCHED_FEAT(FBT_STRICT_ORDER, true)
  * If disabled, this behaviour will only apply to tasks of the
  * RT class.
  */
-SCHED_FEAT(SCHEDTUNE_BOOST_HOLD_ALL, true)
+SCHED_FEAT(SCHEDTUNE_BOOST_HOLD_ALL, false)
