@@ -1268,7 +1268,8 @@ rt_mutex_slowlock(struct rt_mutex *lock, int state,
 
 	if (unlikely(ret)) {
 		__set_current_state(TASK_RUNNING);
-		remove_waiter(lock, &waiter);
+		if (rt_mutex_has_waiters(lock))
+			remove_waiter(lock, &waiter);
 		rt_mutex_handle_deadlock(ret, chwalk, &waiter);
 	}
 
@@ -1485,9 +1486,9 @@ void __sched rt_mutex_lock_nested(struct rt_mutex *lock, unsigned int subclass)
 	__rt_mutex_lock(lock, subclass);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_nested);
+#endif
 
-#else /* !CONFIG_DEBUG_LOCK_ALLOC */
-
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 /**
  * rt_mutex_lock - lock a rt_mutex
  *
@@ -1636,12 +1637,11 @@ bool __sched __rt_mutex_futex_unlock(struct rt_mutex *lock,
 void __sched rt_mutex_futex_unlock(struct rt_mutex *lock)
 {
 	DEFINE_WAKE_Q(wake_q);
-	unsigned long flags;
 	bool postunlock;
 
-	raw_spin_lock_irqsave(&lock->wait_lock, flags);
+	raw_spin_lock_irq(&lock->wait_lock);
 	postunlock = __rt_mutex_futex_unlock(lock, &wake_q);
-	raw_spin_unlock_irqrestore(&lock->wait_lock, flags);
+	raw_spin_unlock_irq(&lock->wait_lock);
 
 	if (postunlock)
 		rt_mutex_postunlock(&wake_q);
