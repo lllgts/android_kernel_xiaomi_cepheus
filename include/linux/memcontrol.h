@@ -30,9 +30,6 @@
 #include <linux/vmstat.h>
 #include <linux/writeback.h>
 #include <linux/page-flags.h>
-#ifdef CONFIG_HYPERHOLD
-#include <linux/memcg_policy.h>
-#endif
 
 struct mem_cgroup;
 struct page;
@@ -65,13 +62,6 @@ struct mem_cgroup_reclaim_cookie {
 	int priority;
 	unsigned int generation;
 };
-
-#ifdef CONFIG_HYPERHOLD
-static inline bool is_prot_page(struct page *page)
-{
-	return false;
-}
-#endif
 
 #ifdef CONFIG_MEMCG
 
@@ -267,14 +257,7 @@ struct mem_cgroup {
 	/* Legacy tcp memory accounting */
 	bool			tcpmem_active;
 	int			tcpmem_pressure;
-#ifdef CONFIG_HYPERHOLD
-	struct memcg_reclaim memcg_reclaimed;
-	struct list_head score_node;
-	struct list_head son_head;
-	struct list_head list_node;
-#define MEM_CGROUP_NAME_MAX_LEN 100
-	char name[MEM_CGROUP_NAME_MAX_LEN];
-#endif
+
 #ifndef CONFIG_SLOB
         /* Index in the kmem_cache->memcg_params.memcg_caches array */
 	int kmemcg_id;
@@ -309,10 +292,6 @@ struct mem_cgroup {
 #define MEMCG_CHARGE_BATCH 32U
 
 extern struct mem_cgroup *root_mem_cgroup;
-#ifdef CONFIG_HYPERHOLD
-struct mem_cgroup *get_next_memcg(struct mem_cgroup *prev);
-void get_next_memcg_break(struct mem_cgroup *prev);
-#endif
 
 static inline bool mem_cgroup_disabled(void)
 {
@@ -407,11 +386,6 @@ static inline struct mem_cgroup *lruvec_memcg(struct lruvec *lruvec)
 
 	if (mem_cgroup_disabled())
 		return NULL;
-
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if (is_node_lruvec(lruvec))
-		return NULL;
-#endif
 
 	mz = container_of(lruvec, struct mem_cgroup_per_node, lruvec);
 	return mz->memcg;
@@ -616,11 +590,6 @@ static inline unsigned long lruvec_page_state(struct lruvec *lruvec,
 	if (mem_cgroup_disabled())
 		return node_page_state(lruvec_pgdat(lruvec), idx);
 
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if (is_node_lruvec(lruvec))
-		return node_page_state(lruvec_pgdat(lruvec), idx);
-#endif
-
 	pn = container_of(lruvec, struct mem_cgroup_per_node, lruvec);
 	x = atomic_long_read(&pn->lruvec_stat[idx]);
 #ifdef CONFIG_SMP
@@ -642,10 +611,6 @@ static inline void __mod_lruvec_state(struct lruvec *lruvec,
 	if (mem_cgroup_disabled())
 		return;
 
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if (is_node_lruvec(lruvec))
-		return;
-#endif
 	pn = container_of(lruvec, struct mem_cgroup_per_node, lruvec);
 
 	/* Update memcg */
@@ -670,16 +635,6 @@ static inline void mod_lruvec_state(struct lruvec *lruvec,
 	local_irq_restore(flags);
 }
 
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-static __always_inline bool is_file_page(struct page *page)
-{
-	if (!PageUnevictable(page) && !PageSwapBacked(page))
-		return true;
-
-	return false;
-}
-#endif
-
 static inline void __mod_lruvec_page_state(struct page *page,
 					   enum node_stat_item idx, int val)
 {
@@ -691,10 +646,6 @@ static inline void __mod_lruvec_page_state(struct page *page,
 		__mod_node_page_state(pgdat, idx, val);
 		return;
 	}
-#ifdef CONFIG_HYPERHOLD_FILE_LRU
-	if(is_file_page(page) && !is_prot_page(page))
-		return;
-#endif
 
 	lruvec = mem_cgroup_lruvec(pgdat, page->mem_cgroup);
 	__mod_lruvec_state(lruvec, idx, val);
@@ -745,11 +696,6 @@ static inline void count_memcg_events(struct mem_cgroup *memcg,
 static inline void count_memcg_page_event(struct page *page,
 					  enum vm_event_item idx)
 {
-	struct mem_cgroup *memcg;
-#ifdef CONFIG_HYPERHOLD
-	if (!memcg)
-		return;
-#endif
 	if (page->mem_cgroup)
 		count_memcg_events(page->mem_cgroup, idx, 1);
 }
