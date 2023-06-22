@@ -1743,6 +1743,8 @@ struct device_attribute *attr, const char *buf, size_t len)
 		return -EINVAL;
 	}
 
+	cpu_limits_set_level(cpu, max);
+
 	return len;
 }
 
